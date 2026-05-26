@@ -188,8 +188,8 @@
                 </div>
                 
                 <div class="relative w-full rounded-xl overflow-hidden shadow-inner bg-slate-100 select-none">
-                    <!-- Ảnh Thành Phố -->
-                    <img src="./image_6064ec.jpg" alt="City Street Scene" class="w-full h-auto object-cover pointer-events-none min-h-[300px]" id="img-city">
+                    <!-- Đã đổi sang tệp ảnh "Ảnh 1.png" được mã hóa URL chuẩn xác -->
+                    <img src="./%E1%BA%A2nh%201.png" alt="City Street Scene" class="w-full h-auto object-cover pointer-events-none min-h-[300px]" id="img-city">
                     
                     <!-- Vùng Thả Tương Tác (Hotspots) cho Map 1 -->
                     <!-- 1. Ride a bike to school or work -->
@@ -225,7 +225,7 @@
                 <div class="mt-2.5 pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-slate-500">
                     <span>⚠️ Nếu ảnh không hiển thị do lỗi bảo mật trình duyệt:</span>
                     <label class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-200 transition-all active:scale-95 inline-flex items-center gap-1.5">
-                        📁 Chọn tệp "image_6064ec.jpg" từ máy...
+                        📁 Chọn tệp "Ảnh 1.png" từ máy...
                         <input type="file" accept="image/*" class="hidden" onchange="handleLocalImageUpload(event, 'img-city')">
                     </label>
                 </div>
@@ -242,8 +242,8 @@
                 </div>
                 
                 <div class="relative w-full rounded-xl overflow-hidden shadow-inner bg-slate-100 select-none">
-                    <!-- Ảnh Khu Vườn -->
-                    <img src="./image_606508.jpg" alt="Garden Scene" class="w-full h-auto object-cover pointer-events-none min-h-[300px]" id="img-garden">
+                    <!-- Đã đổi sang tệp ảnh "Ảnh 2.png" được mã hóa URL chuẩn xác -->
+                    <img src="./%E1%BA%A2nh%202.png" alt="Garden Scene" class="w-full h-auto object-cover pointer-events-none min-h-[300px]" id="img-garden">
                     
                     <!-- Vùng Thả Tương Tác (Hotspots) cho Map 2 -->
                     <!-- 6. Plant trees in your community -->
@@ -269,7 +269,7 @@
                 <div class="mt-2.5 pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-slate-500">
                     <span>⚠️ Nếu ảnh không hiển thị do lỗi bảo mật trình duyệt:</span>
                     <label class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-200 transition-all active:scale-95 inline-flex items-center gap-1.5">
-                        📁 Chọn tệp "image_606508.jpg" từ máy...
+                        📁 Chọn tệp "Ảnh 2.png" từ máy...
                         <input type="file" accept="image/*" class="hidden" onchange="handleLocalImageUpload(event, 'img-garden')">
                     </label>
                 </div>
@@ -843,8 +843,8 @@
                 };
             };
 
-            attemptRetry(cityImg, 'image_6064ec.jpg');
-            attemptRetry(gardenImg, 'image_606508.jpg');
+            attemptRetry(cityImg, 'Ảnh 1.png');
+            attemptRetry(gardenImg, 'Ảnh 2.png');
         }
 
         window.onload = () => {
