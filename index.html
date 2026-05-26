@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trò Chơi Sống Xanh - Học Từ Vựng Tương Tác</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: radial-gradient(120% 120% at 50% 10%, #f8fafc 40%, #e2e8f0 100%);
+            touch-action: manipulation;
+        }
+
+        /* Thẻ từ vựng với chuyển động mượt mà */
+        .word-card {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
+            cursor: grab;
+        }
+
+        .word-card:active {
+            cursor: grabbing;
+        }
+
+        .word-card.dragging {
+            opacity: 0.3;
+            transform: scale(0.95);
+            border-style: dashed;
+        }
+
+        /* Vùng đích thả nhấp nháy định vị */
+        .hotspot-zone {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 3px dashed rgba(255, 255, 255, 0.65);
+            background-color: rgba(255, 255, 255, 0.12);
+            box-shadow: 0 0 12px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(1.5px);
+        }
+
+        /* Hiệu ứng phát sáng khi người chơi đang chọn hoặc kéo một thẻ từ */
+        .hotspot-zone.highlight-hint {
+            border-color: #fbbf24;
+            background-color: rgba(251, 191, 36, 0.25);
+            animation: pulse-border 1.5s infinite;
+        }
+
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(251, 191, 36, 0.8); box-shadow: 0 0 15px rgba(251, 191, 36, 0.4); }
+            50% { border-color: rgba(251, 191, 36, 0.3); box-shadow: 0 0 5px rgba(251, 191, 36, 0.1); }
+        }
+
+        .hotspot-zone:hover {
+            border-color: #3b82f6;
+            background-color: rgba(59, 130, 246, 0.3);
+            transform: scale(1.03);
+            z-index: 20;
+        }
+
+        /* Thẻ từ vựng đã thả đúng vị trí */
+        .matched-badge {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.2) forwards;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.6) translate(-50%, -50%); opacity: 0; }
+            100% { transform: scale(1) translate(-50%, -50%); opacity: 1; }
+        }
+
+        #confetti-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-3 md:p-6 overflow-x-hidden">
+
+    <canvas id="confetti-canvas"></canvas>
+
+    <!-- Header Panel -->
+    <div class="max-w-7xl w-full text-center mb-4 md:mb-5">
+        <span class="px-4 py-1.5 bg-emerald-100 text-emerald-800 rounded-full text-xs font-extrabold uppercase tracking-wider shadow-sm inline-flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            Hành Trình Sống Xanh - Green Living
+        </span>
+        <h1 class="text-2xl md:text-4xl font-extrabold text-slate-800 mt-2 tracking-tight">
+            Trò Chơi Ghép Từ Vựng Tương Tác
+        </h1>
+        <p class="text-sm md:text-base text-slate-500 mt-1">
+            Kéo các câu hành động ở bên trái thả vào đúng hoạt động tương ứng trên 2 bức hình!
+        </p>
+
+        <!-- Stats & Controls bar -->
+        <div class="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white/95 backdrop-blur-md p-3.5 md:p-4 rounded-2xl shadow-sm border border-slate-100 mt-4 max-w-5xl mx-auto">
+            <div class="grid grid-cols-3 sm:flex items-center gap-4 w-full sm:w-auto text-left">
+                <!-- Tiến độ -->
+                <div class="bg-indigo-50 px-3 md:px-4 py-1.5 rounded-xl border border-indigo-100 text-center sm:text-left">
+                    <span class="block text-[10px] uppercase font-bold text-slate-400">Tiến độ</span>
+                    <span id="score-display" class="text-lg md:text-xl font-extrabold text-indigo-600">0 / 8</span>
+                </div>
+                <!-- Thời gian -->
+                <div class="bg-sky-50 px-3 md:px-4 py-1.5 rounded-xl border border-sky-100 text-center sm:text-left">
+                    <span class="block text-[10px] uppercase font-bold text-slate-400">Thời gian</span>
+                    <span id="timer-display" class="text-lg md:text-xl font-extrabold text-sky-600">00:00</span>
+                </div>
+                <!-- Độ chính xác -->
+                <div class="bg-emerald-50 px-3 md:px-4 py-1.5 rounded-xl border border-emerald-100 text-center sm:text-left">
+                    <span class="block text-[10px] uppercase font-bold text-slate-400">Độ đúng</span>
+                    <span id="accuracy-display" class="text-lg md:text-xl font-extrabold text-emerald-600">100%</span>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
+                <!-- Toggle dịch tiếng việt -->
+                <label class="relative inline-flex items-center cursor-pointer bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                    <input type="checkbox" id="translate-toggle" class="sr-only peer">
+                    <span class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors peer-checked:bg-transparent peer-checked:text-slate-500 bg-emerald-600 text-white" id="lbl-en">EN</span>
+                    <span class="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors peer-checked:bg-emerald-600 peer-checked:text-white bg-transparent text-slate-500" id="lbl-vi">VI</span>
+                </label>
+
+                <!-- Bật tắt âm thanh -->
+                <button id="mute-btn" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 rounded-xl transition-all active:scale-95" title="Bật/Tắt âm thanh">
+                    🔊
+                </button>
+
+                <button id="hint-btn" class="px-3.5 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl font-bold text-xs md:text-sm hover:bg-amber-100 transition-colors active:scale-95">
+                    💡 Gợi ý vị trí
+                </button>
+                <button id="reset-btn" class="px-3.5 py-2 bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-bold text-xs md:text-sm hover:bg-slate-200 transition-colors active:scale-95">
+                    Chơi lại
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Game Workspace -->
+    <div class="max-w-7xl w-full grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left Panel: Word Bank -->
+        <div class="lg:col-span-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-150 flex flex-col h-auto lg:h-[750px]">
+            <h2 class="text-md font-bold text-slate-700 mb-3 pb-2 border-b border-slate-100 flex items-center justify-between">
+                <span class="flex items-center gap-2">📂 Danh sách hành động</span>
+                <span class="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-bold" id="remain-count">8 câu còn lại</span>
+            </h2>
+
+            <!-- Khu vực kéo thả chính -->
+            <div class="flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-1 flex-grow" id="word-bank">
+                <!-- Sẽ tự động tạo thẻ từ bằng JS -->
+            </div>
+
+            <!-- Khu vực danh sách đã hoàn thành -->
+            <div class="mt-4 pt-3 border-t border-slate-100">
+                <h3 class="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-2">Đã hoàn thành</h3>
+                <div class="flex flex-wrap gap-1.5" id="completed-container">
+                    <span class="text-xs text-slate-400 italic py-2">Chưa có hành động nào được ghép đúng...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Combined Interactive Scene Maps -->
+        <div class="lg:col-span-8 flex flex-col gap-6">
+            
+            <!-- Map 1: Thành Phố Sầm Uất (City Scene) -->
+            <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+                <div class="flex items-center justify-between mb-2 px-1">
+                    <span class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span>
+                        Bức tranh 1: Thành Phố Văn Minh (Câu 1 - 5)
+                    </span>
+                    <span class="text-xs font-semibold bg-blue-50 text-blue-600 px-2.5 py-0.5 rounded-full">5 mục tiêu</span>
+                </div>
+                
+                <div class="relative w-full rounded-xl overflow-hidden shadow-inner bg-slate-100 select-none">
+                    <!-- Ảnh Thành Phố -->
+                    <img src="./image_6064ec.jpg" alt="City Street Scene" class="w-full h-auto object-cover pointer-events-none min-h-[300px]" id="img-city">
+                    
+                    <!-- Vùng Thả Tương Tác (Hotspots) cho Map 1 -->
+                    <!-- 1. Ride a bike to school or work -->
+                    <div id="hotspot-bike" class="hotspot-zone absolute rounded-full" 
+                         style="top: 31%; left: 69%; width: 22%; height: 21%;" 
+                         data-target="bike" title="Ride a bike"></div>
+                    
+                    <!-- 2. Carry a reusable bag -->
+                    <div id="hotspot-bag" class="hotspot-zone absolute rounded-full" 
+                         style="top: 61%; left: 23%; width: 15%; height: 28%;" 
+                         data-target="bag" title="Carry reusable bags"></div>
+                    
+                    <!-- 3. Plan your meals -->
+                    <div id="hotspot-meals" class="hotspot-zone absolute rounded-lg" 
+                         style="top: 56%; left: 13%; width: 15%; height: 18%;" 
+                         data-target="meals" title="Plan your meals"></div>
+                    
+                    <!-- 4. Recycle glass bottles -->
+                    <div id="hotspot-recycle" class="hotspot-zone absolute rounded-lg" 
+                         style="top: 48%; left: 35%; width: 16%; height: 25%;" 
+                         data-target="recycle" title="Recycle bottles and cans"></div>
+                    
+                    <!-- 5. Hang your clothes to dry -->
+                    <div id="hotspot-dry" class="hotspot-zone absolute rounded-lg" 
+                         style="top: 25%; left: 15%; width: 17%; height: 21%;" 
+                         data-target="dry" title="Hang clothes to dry"></div>
+
+                    <!-- Nơi gắn kết kết quả đúng -->
+                    <div id="labels-map-1" class="absolute inset-0 pointer-events-none"></div>
+                </div>
+
+                <!-- Khung chọn ảnh dự phòng nếu lỗi hiển thị -->
+                <div class="mt-2.5 pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-slate-500">
+                    <span>⚠️ Nếu ảnh không hiển thị do lỗi bảo mật trình duyệt:</span>
+                    <label class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-200 transition-all active:scale-95 inline-flex items-center gap-1.5">
+                        📁 Chọn tệp "image_6064ec.jpg" từ máy...
+                        <input type="file" accept="image/*" class="hidden" onchange="handleLocalImageUpload(event, 'img-city')">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Map 2: Khu Vườn Sinh Thái (Garden Scene) -->
+            <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+                <div class="flex items-center justify-between mb-2 px-1">
+                    <span class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+                        Bức tranh 2: Khu Vườn Sinh Thái (Câu 6 - 8)
+                    </span>
+                    <span class="text-xs font-semibold bg-emerald-50 text-emerald-600 px-2.5 py-0.5 rounded-full">3 mục tiêu</span>
+                </div>
+                
+                <div class="relative w-full rounded-xl overflow-hidden shadow-inner bg-slate-100 select-none">
+                    <!-- Ảnh Khu Vườn -->
+                    <img src="./image_606508.jpg" alt="Garden Scene" class="w-full h-auto object-cover pointer-events-none min-h-[300px]" id="img-garden">
+                    
+                    <!-- Vùng Thả Tương Tác (Hotspots) cho Map 2 -->
+                    <!-- 6. Plant trees in your community -->
+                    <div id="hotspot-trees" class="hotspot-zone absolute rounded-full" 
+                         style="top: 72%; left: 47%; width: 18%; height: 25%;" 
+                         data-target="trees" title="Plant trees"></div>
+                    
+                    <!-- 7. Plant flowers for insects -->
+                    <div id="hotspot-flowers" class="hotspot-zone absolute rounded-full" 
+                         style="top: 70%; left: 30%; width: 18%; height: 24%;" 
+                         data-target="flowers" title="Plant flowers for insects"></div>
+                    
+                    <!-- 8. Go to neighborhood meetings -->
+                    <div id="hotspot-meetings" class="hotspot-zone absolute rounded-lg" 
+                         style="top: 6%; left: 53%; width: 23%; height: 23%;" 
+                         data-target="meetings" title="Go to neighborhood meetings"></div>
+
+                    <!-- Nơi gắn kết kết quả đúng -->
+                    <div id="labels-map-2" class="absolute inset-0 pointer-events-none"></div>
+                </div>
+
+                <!-- Khung chọn ảnh dự phòng nếu lỗi hiển thị -->
+                <div class="mt-2.5 pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-slate-500">
+                    <span>⚠️ Nếu ảnh không hiển thị do lỗi bảo mật trình duyệt:</span>
+                    <label class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-200 transition-all active:scale-95 inline-flex items-center gap-1.5">
+                        📁 Chọn tệp "image_606508.jpg" từ máy...
+                        <input type="file" accept="image/*" class="hidden" onchange="handleLocalImageUpload(event, 'img-garden')">
+                    </label>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Màn hình chúc mừng khi hoàn thành tất cả -->
+    <div id="win-modal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+        <div class="bg-white max-w-md w-full rounded-3xl p-8 text-center shadow-2xl border border-slate-100 transform scale-95 transition-all duration-300">
+            <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-4xl mx-auto mb-4 animate-bounce">
+                🌍🌱
+            </div>
+            <h2 class="text-2xl md:text-3xl font-extrabold text-slate-800 mb-1">Thắng Cuộc Xuất Sắc!</h2>
+            <p class="text-slate-500 mb-6 text-sm leading-relaxed">
+                Bạn đã hoàn thành ghép đúng toàn bộ <span class="font-bold text-emerald-600">8 hành động Sống Xanh</span>!
+            </p>
+            
+            <!-- Thống kê kết quả -->
+            <div class="grid grid-cols-2 gap-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-left">
+                <div>
+                    <span class="text-[10px] uppercase font-bold text-slate-400 block">Thời gian</span>
+                    <span id="stat-time" class="text-base font-extrabold text-slate-700">00:00</span>
+                </div>
+                <div>
+                    <span class="text-[10px] uppercase font-bold text-slate-400 block">Độ chính xác</span>
+                    <span id="stat-accuracy" class="text-base font-extrabold text-slate-700">100%</span>
+                </div>
+            </div>
+
+            <button onclick="resetGame()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-2xl shadow-lg shadow-emerald-600/20 active:scale-[0.98] transition-all">
+                Chơi Trận Mới
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast thông báo nhanh -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs md:text-sm font-semibold px-6 py-3.5 rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 z-50 flex items-center gap-2">
+        <span id="toast-icon">✨</span>
+        <span id="toast-text">Sai rồi, hãy quan sát kỹ lại nhé!</span>
+    </div>
+
+    <script>
+        // Dữ liệu bộ từ vựng & câu tương ứng với vị trí trong ảnh kèm phiên dịch Tiếng Việt
+        const gameData = [
+            { id: 'bike', num: '1', phrase: 'Ride a bike to school or work.', vn: 'Đạp xe đi học hoặc đi làm.', color: 'from-blue-500 to-indigo-600' },
+            { id: 'bag', num: '2', phrase: 'Carry a reusable bag instead of using disposable plastic bags.', vn: 'Mang túi tái sử dụng thay vì túi nilon dùng một lần.', color: 'from-emerald-500 to-teal-600' },
+            { id: 'meals', num: '3', phrase: 'Plan your meals to reduce food waste.', vn: 'Lên kế hoạch bữa ăn để giảm lãng phí thức phẩm.', color: 'from-amber-500 to-orange-600' },
+            { id: 'recycle', num: '4', phrase: 'Recycle glass bottles and cans.', vn: 'Tái chế chai lọ thủy tinh và lon.', color: 'from-sky-500 to-cyan-600' },
+            { id: 'dry', num: '5', phrase: 'Hang your clothes to dry instead of using a clothes dryer.', vn: 'Phơi khô quần áo thay vì dùng máy sấy.', color: 'from-pink-500 to-rose-600' },
+            { id: 'trees', num: '6', phrase: 'Plant trees in your community.', vn: 'Trồng cây xanh trong khu dân cư của bạn.', color: 'from-green-600 to-emerald-700' },
+            { id: 'flowers', num: '7', phrase: 'Plant flowers for insects.', vn: 'Trồng hoa để thu hút côn trùng thụ phấn.', color: 'from-purple-500 to-indigo-600' },
+            { id: 'meetings', num: '8', phrase: 'Go to neighborhood meetings to hear more about "green living."', vn: 'Tham gia các buổi họp tổ dân phố về Sống Xanh.', color: 'from-violet-500 to-purple-600' }
+        ];
+
+        let score = 0;
+        let selectedId = null; 
+        let matchedItems = new Set();
+        let totalAttempts = 0;
+        let correctAttempts = 0;
+        let isMuted = false;
+        let showVietnamese = false;
+
+        // Quản lý đồng hồ thời gian
+        let startTime = null;
+        let timerInterval = null;
+
+        const wordBankEl = document.getElementById('word-bank');
+        const scoreDisplay = document.getElementById('score-display');
+        const timerDisplay = document.getElementById('timer-display');
+        const accuracyDisplay = document.getElementById('accuracy-display');
+        const remainCountEl = document.getElementById('remain-count');
+        const winModal = document.getElementById('win-modal');
+        const toastEl = document.getElementById('toast');
+        const toastText = document.getElementById('toast-text');
+        const toastIcon = document.getElementById('toast-icon');
+        const completedContainer = document.getElementById('completed-container');
+        const translateToggle = document.getElementById('translate-toggle');
+
+        // Bộ synthesizer âm thanh của trình duyệt (Web Audio API)
+        let audioCtx = null;
+        
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            if (isMuted) return;
+            initAudio();
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'success') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+                osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); // E5
+                osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.2); // G5
+                gainNode.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.5);
+            } else if (type === 'error') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(70, audioCtx.currentTime + 0.25);
+                gainNode.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.35);
+            } else if (type === 'victory') {
+                const notes = [261.63, 329.63, 392.00, 523.25, 659.25];
+                notes.forEach((freq, idx) => {
+                    const oscNote = audioCtx.createOscillator();
+                    const gainNote = audioCtx.createGain();
+                    oscNote.connect(gainNote);
+                    gainNote.connect(audioCtx.destination);
+                    oscNote.type = 'sine';
+                    oscNote.frequency.value = freq;
+                    gainNote.gain.setValueAtTime(0.12, audioCtx.currentTime + idx * 0.1);
+                    gainNote.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + idx * 0.1 + 0.25);
+                    oscNote.start(audioCtx.currentTime + idx * 0.1);
+                    oscNote.stop(audioCtx.currentTime + idx * 0.1 + 0.3);
+                });
+            }
+        }
+
+        // Quản lý đồng hồ thời gian chơi
+        function startTimer() {
+            startTime = Date.now();
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                const diff = Date.now() - startTime;
+                const minutes = Math.floor(diff / 60000);
+                const seconds = Math.floor((diff % 60000) / 1000);
+                timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        // Tạo danh sách thẻ từ vựng
+        function initWordBank() {
+            const shuffled = [...gameData].sort(() => Math.random() - 0.5);
+            wordBankEl.innerHTML = '';
+            
+            shuffled.forEach(item => {
+                // Nếu mục này đã được ghép rồi thì bỏ qua không tạo nữa
+                if (matchedItems.has(item.id)) return;
+
+                const card = document.createElement('div');
+                card.id = `card-${item.id}`;
+                card.className = `word-card bg-gradient-to-r ${item.color} text-white p-3.5 rounded-xl shadow-sm border border-black/10 text-xs md:text-sm font-semibold leading-snug cursor-grab hover:-translate-y-0.5 active:translate-y-0 hover:shadow-md`;
+                
+                updateCardContent(card, item);
+                
+                card.draggable = true;
+                card.dataset.id = item.id;
+
+                // Sự kiện Drag cho Desktop
+                card.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', item.id);
+                    card.classList.add('dragging');
+                    highlightCorrectHotspot(item.id, true);
+                });
+
+                card.addEventListener('dragend', () => {
+                    card.classList.remove('dragging');
+                    highlightCorrectHotspot(item.id, false);
+                });
+
+                // Sự kiện chạm màn hình hoặc bấm chọn
+                card.addEventListener('click', () => {
+                    initAudio(); // Kích hoạt AudioContext khi người dùng chạm lần đầu
+                    selectWord(item.id, card);
+                });
+
+                wordBankEl.appendChild(card);
+            });
+            updateRemainingCount();
+        }
+
+        // Cập nhật nội dung thẻ dựa trên lựa chọn dịch thuật
+        function updateCardContent(cardEl, item) {
+            const displayPhrase = showVietnamese ? item.vn : item.phrase;
+            cardEl.innerHTML = `
+                <div class="flex items-start gap-2.5">
+                    <span class="bg-white/20 text-white rounded-md px-1.5 py-0.5 text-[10px] font-extrabold flex-shrink-0 mt-0.5">${item.num}</span>
+                    <span class="flex-grow">${displayPhrase}</span>
+                </div>
+            `;
+        }
+
+        // Highlight mục tiêu đúng khi bắt đầu kéo để người dùng dễ nhìn
+        function highlightCorrectHotspot(id, active) {
+            const z = document.querySelector(`.hotspot-zone[data-target="${id}"]`);
+            if (z) {
+                if (active) {
+                    z.classList.add('highlight-hint');
+                } else {
+                    z.classList.remove('highlight-hint');
+                }
+            }
+        }
+
+        // Chọn thẻ từ vựng chế độ di động
+        function selectWord(id, el) {
+            // Nếu click vào thẻ đang chọn thì hủy chọn
+            if (selectedId === id) {
+                el.classList.remove('ring-4', 'ring-indigo-400', 'scale-[1.02]');
+                selectedId = null;
+                highlightCorrectHotspot(id, false);
+                return;
+            }
+
+            // Xóa hiệu ứng của các thẻ khác
+            document.querySelectorAll('.word-card').forEach(c => {
+                c.classList.remove('ring-4', 'ring-indigo-400', 'scale-[1.02]');
+            });
+            document.querySelectorAll('.hotspot-zone').forEach(z => {
+                z.classList.remove('highlight-hint');
+            });
+
+            // Chọn thẻ mới
+            selectedId = id;
+            el.classList.add('ring-4', 'ring-indigo-400', 'scale-[1.02]');
+            highlightCorrectHotspot(id, true);
+            showToast('👉 Chạm vào vòng tròn nhấp nháy màu vàng trên hình để kiểm tra đáp án!', '🍀');
+        }
+
+        // Thiết lập các điểm thả tương tác đón nhận sự kiện
+        function initHotspots() {
+            document.querySelectorAll('.hotspot-zone').forEach(zone => {
+                const targetId = zone.dataset.target;
+
+                zone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                });
+
+                zone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const draggedId = e.dataTransfer.setData ? e.dataTransfer.getData('text/plain') : null;
+                    if (draggedId) {
+                        handleAnswer(draggedId, targetId, zone);
+                    }
+                });
+
+                // Hỗ trợ thả khi kéo thả HTML5 chuẩn
+                zone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const draggedId = e.dataTransfer.getData('text/plain');
+                    handleAnswer(draggedId, targetId, zone);
+                });
+
+                // Hỗ trợ chế độ bấm chạm để ghép
+                zone.addEventListener('click', () => {
+                    if (selectedId) {
+                        handleAnswer(selectedId, targetId, zone);
+                    } else {
+                        const match = gameData.find(item => item.id === targetId);
+                        showToast(`Hãy chọn câu: "${showVietnamese ? match.vn : match.phrase}" ở cột bên trái trước nhé!`, '💡');
+                    }
+                });
+            });
+        }
+
+        // Xử lý kiểm tra đúng sai
+        function handleAnswer(wordId, targetId, zone) {
+            totalAttempts++;
+            highlightCorrectHotspot(wordId, false);
+
+            if (wordId === targetId) {
+                correctAttempts++;
+                matchedItems.add(wordId);
+                score++;
+                
+                playSound('success');
+
+                // Xóa thẻ khỏi ngân hàng từ vựng
+                const card = document.getElementById(`card-${wordId}`);
+                if (card) card.remove();
+
+                // Tạo nhãn cố định trên màn hình hoạt cảnh
+                placeVisualLabel(wordId, zone);
+
+                // Thêm vào danh sách đã hoàn thành dưới chân panel bên trái
+                addToCompletedList(wordId);
+
+                // Ẩn vùng thả màu trắng đứt nét vừa ghép đúng
+                zone.classList.add('hidden');
+
+                // Cập nhật điểm số
+                scoreDisplay.textContent = `${score} / ${gameData.length}`;
+                updateRemainingCount();
+
+                selectedId = null;
+
+                // Kiểm tra hoàn thành trò chơi
+                if (score === gameData.length) {
+                    stopTimer();
+                    setTimeout(() => {
+                        playSound('victory');
+                        startConfettiAnimation();
+                        showVictoryModal();
+                    }, 500);
+                } else {
+                    showToast('Cực kỳ chính xác! Bạn làm tốt lắm!', '🎉');
+                }
+            } else {
+                playSound('error');
+                showToast('Hành động này chưa đúng vị trí hoạt động trên hình, hãy quan sát kỹ lại!', '❌');
+                
+                // Khôi phục viền thẻ
+                document.querySelectorAll('.word-card').forEach(c => {
+                    c.classList.remove('ring-4', 'ring-indigo-400', 'scale-[1.02]');
+                });
+                selectedId = null;
+            }
+
+            updateAccuracy();
+        }
+
+        // Tính toán cập nhật tỉ lệ chính xác
+        function updateAccuracy() {
+            if (totalAttempts === 0) return;
+            const percentage = Math.round((correctAttempts / totalAttempts) * 100);
+            accuracyDisplay.textContent = `${percentage}%`;
+        }
+
+        // Đặt nhãn đính kèm khi ghép đúng
+        function placeVisualLabel(id, zone) {
+            const data = gameData.find(d => d.id === id);
+            
+            const top = zone.style.top;
+            const left = zone.style.left;
+
+            const badge = document.createElement('div');
+            badge.className = `matched-badge absolute bg-gradient-to-r ${data.color} text-white px-3 py-1.5 rounded-lg text-[9px] md:text-xs font-bold shadow-md flex items-center gap-1.5 z-10 border border-white/20 select-none pointer-events-auto whitespace-normal max-w-[150px] md:max-w-[200px]`;
+            badge.style.top = top;
+            badge.style.left = left;
+            badge.style.transform = 'translate(-50%, -50%)';
+
+            badge.innerHTML = `
+                <span class="flex-shrink-0 w-4.5 h-4.5 rounded-full bg-white text-slate-800 flex items-center justify-center font-extrabold text-[9px]">✓</span>
+                <span>${showVietnamese ? data.vn : data.phrase}</span>
+            `;
+
+            // Xác định gắn nhãn vào bức tranh 1 hay 2
+            const isMap2 = ['trees', 'flowers', 'meetings'].includes(id);
+            const container = isMap2 ? document.getElementById('labels-map-2') : document.getElementById('labels-map-1');
+            container.appendChild(badge);
+        }
+
+        // Tạo nhãn nhỏ cho vùng "Đã hoàn thành" ở bên trái
+        function addToCompletedList(id) {
+            const data = gameData.find(d => d.id === id);
+            
+            if (matchedItems.size === 1) {
+                completedContainer.innerHTML = ''; // Clear dòng chữ trống rỗng ban đầu
+            }
+
+            const badge = document.createElement('div');
+            badge.className = `bg-slate-50 border border-slate-200 text-slate-700 px-2.5 py-1.5 rounded-xl text-xs flex items-center gap-1.5 font-medium shadow-sm animate-pulse`;
+            badge.innerHTML = `
+                <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                <span class="font-extrabold text-[10px] text-slate-400">#${data.num}</span>
+                <span class="truncate max-w-[120px]" title="${data.phrase}">${data.phrase}</span>
+            `;
+            completedContainer.appendChild(badge);
+        }
+
+        // Sự kiện chuyển ngữ EN / VI
+        translateToggle.addEventListener('change', (e) => {
+            showVietnamese = e.target.checked;
+            
+            // Cập nhật lại các thẻ từ đang có trong word bank
+            document.querySelectorAll('.word-card').forEach(card => {
+                const id = card.dataset.id;
+                const item = gameData.find(d => d.id === id);
+                if (item) updateCardContent(card, item);
+            });
+
+            // Cập nhật lại các nhãn đã gắn trên hình
+            document.getElementById('labels-map-1').innerHTML = '';
+            document.getElementById('labels-map-2').innerHTML = '';
+            
+            matchedItems.forEach(id => {
+                const zone = document.querySelector(`.hotspot-zone[data-target="${id}"]`);
+                if (zone) placeVisualLabel(id, zone);
+            });
+
+            showToast(showVietnamese ? 'Chuyển sang Tiếng Việt' : 'Chuyển sang Tiếng Anh', '🌐');
+        });
+
+        // Nút tắt mở âm thanh
+        document.getElementById('mute-btn').addEventListener('click', () => {
+            isMuted = !isMuted;
+            document.getElementById('mute-btn').textContent = isMuted ? '🔇' : '🔊';
+            showToast(isMuted ? 'Đã tắt âm thanh phản hồi' : 'Đã bật âm thanh phản hồi', '🎵');
+        });
+
+        // Thông báo đẩy Toast
+        function showToast(text, icon = '✨') {
+            toastText.textContent = text;
+            toastIcon.textContent = icon;
+            toastEl.style.opacity = '1';
+            
+            clearTimeout(window.toastTimer);
+            window.toastTimer = setTimeout(() => {
+                toastEl.style.opacity = '0';
+            }, 3000);
+        }
+
+        function updateRemainingCount() {
+            const remaining = gameData.length - score;
+            remainCountEl.textContent = `${remaining} câu còn lại`;
+        }
+
+        // Gợi ý hiển thị tạm thời vị trí đúng trong 2.5 giây
+        document.getElementById('hint-btn').addEventListener('click', () => {
+            const hotspots = document.querySelectorAll('.hotspot-zone:not(.hidden)');
+            hotspots.forEach(z => {
+                z.style.borderColor = '#e11d48'; // Đổi thành màu hồng/đỏ nhấp nháy nổi bật
+                z.style.backgroundColor = 'rgba(225, 29, 72, 0.4)';
+                z.style.transform = 'scale(1.02)';
+            });
+
+            showToast('Các điểm màu hồng nhấp nháy chính là mục tiêu cần tìm!', '💡');
+
+            setTimeout(() => {
+                hotspots.forEach(z => {
+                    z.style.borderColor = '';
+                    z.style.backgroundColor = '';
+                    z.style.transform = '';
+                });
+            }, 2500);
+        });
+
+        // Thiết lập màn chúc mừng chiến thắng
+        function showVictoryModal() {
+            document.getElementById('stat-time').textContent = timerDisplay.textContent;
+            document.getElementById('stat-accuracy').textContent = accuracyDisplay.textContent;
+            winModal.classList.remove('hidden');
+        }
+
+        // Thiết lập lại toàn bộ trò chơi từ đầu
+        function resetGame() {
+            score = 0;
+            totalAttempts = 0;
+            correctAttempts = 0;
+            selectedId = null;
+            matchedItems.clear();
+            
+            scoreDisplay.textContent = `0 / ${gameData.length}`;
+            accuracyDisplay.textContent = '100%';
+            winModal.classList.add('hidden');
+            
+            completedContainer.innerHTML = '<span class="text-xs text-slate-400 italic py-2">Chưa có hành động nào được ghép đúng...</span>';
+            document.getElementById('labels-map-1').innerHTML = '';
+            document.getElementById('labels-map-2').innerHTML = '';
+
+            document.querySelectorAll('.hotspot-zone').forEach(z => {
+                z.classList.remove('hidden', 'highlight-hint');
+            });
+
+            initWordBank();
+            startTimer();
+            showToast('Chúc bạn hoàn thành màn chơi thật nhanh nhé! 🚀', '🎮');
+        }
+
+        document.getElementById('reset-btn').addEventListener('click', resetGame);
+
+        // Hiệu ứng pháo hoa khi chiến thắng
+        const canvas = document.getElementById('confetti-canvas');
+        const ctx = canvas.getContext('2d');
+        let confetti = [];
+        let confettiActive = false;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class ConfettiParticle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height - canvas.height;
+                this.size = Math.random() * 8 + 6;
+                this.color = `hsl(${Math.random() * 360}, 90%, 60%)`;
+                this.speedX = Math.random() * 4 - 2;
+                this.speedY = Math.random() * 5 + 4;
+                this.rotation = Math.random() * 360;
+                this.rotationSpeed = Math.random() * 3 - 1.5;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.rotation += this.rotationSpeed;
+                if (this.y > canvas.height) {
+                    this.y = -20;
+                    this.x = Math.random() * canvas.width;
+                }
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate((this.rotation * Math.PI) / 180);
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
+                ctx.restore();
+            }
+        }
+
+        function startConfettiAnimation() {
+            confettiActive = true;
+            confetti = [];
+            for (let i = 0; i < 150; i++) {
+                confetti.push(new ConfettiParticle());
+            }
+            animateConfetti();
+        }
+
+        function animateConfetti() {
+            if (!confettiActive) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            confetti.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            requestAnimationFrame(animateConfetti);
+        }
+
+        // Tải hình ảnh cục bộ từ máy tính của người dùng
+        window.handleLocalImageUpload = function(event, imgId) {
+            const file = event.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                const targetImg = document.getElementById(imgId);
+                targetImg.src = url;
+                showToast('Đã tải và hiển thị ảnh thành công! 🎉', '🖼️');
+            }
+        }
+
+        // Tự động kiểm tra nạp ảnh và thử lại nếu cần thiết
+        function verifyAndRetryImages() {
+            const cityImg = document.getElementById('img-city');
+            const gardenImg = document.getElementById('img-garden');
+
+            const attemptRetry = (imgEl, filename) => {
+                let attempts = 0;
+                imgEl.onerror = () => {
+                    attempts++;
+                    if (attempts <= 5) {
+                        setTimeout(() => {
+                            imgEl.src = `./${filename}?retry=${attempts}`;
+                        }, attempts * 500);
+                    } else {
+                        console.error(`Không thể tự động nạp ${filename}.`);
+                    }
+                };
+            };
+
+            attemptRetry(cityImg, 'image_6064ec.jpg');
+            attemptRetry(gardenImg, 'image_606508.jpg');
+        }
+
+        window.onload = () => {
+            verifyAndRetryImages();
+            initWordBank();
+            initHotspots();
+            startTimer();
+        };
+    </script>
+</body>
+</html>
